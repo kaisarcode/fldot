@@ -301,10 +301,10 @@ static int kc_fldot_generate_dot(const kc_flow_records *r, FILE *out) {
     }
 
     fprintf(out, "digraph "); kc_dot_quote(out, flow_id); fputs(" {\n", out);
-    fprintf(out, "  graph [rankdir=LR, bgcolor=\"" KCV_BG "\", fontname=\"" KCV_FONT "\", fontcolor=\"" KCV_GRAPH_TEXT "\", label=\"%s\", labelloc=t, fontsize=24, pad=0.6, nodesep=1.25, ranksep=1.75, splines=ortho];\n", flow_id);
-    fprintf(out, "  node [shape=box, style=\"rounded,filled\", fillcolor=\"" KCV_NODE_FILL "\", color=\"" KCV_NODE_BORDER "\", fontname=\"" KCV_FONT "\", fontcolor=\"" KCV_NODE_TEXT "\", fontsize=12, margin=\"0.16,0.10\"];\n");
-    fprintf(out, "  edge [arrowsize=0.65, penwidth=1.2];\n");
-    kc_dot_quote(out, "flow:entry"); fputs(" [label=\"flow.link\\nentry\", shape=oval, fillcolor=\"" KCV_ENTRY_FILL "\", color=\"" KCV_ENTRY_BORDER "\", penwidth=2.2];\n", out);
+    fprintf(out, "  graph [rankdir=\"" KCV_GRAPH_RANKDIR "\", bgcolor=\"" KCV_BG "\", fontname=\"" KCV_FONT "\", fontcolor=\"" KCV_GRAPH_TEXT "\", label=\"%s\", labelloc=t, fontsize=" KCV_GRAPH_FONTSIZE ", pad=" KCV_GRAPH_PAD ", nodesep=" KCV_GRAPH_NODESEP ", ranksep=" KCV_GRAPH_RANKSEP ", splines=\"" KCV_GRAPH_SPLINES "\"];\n", flow_id);
+    fprintf(out, "  node [shape=\"" KCV_NODE_SHAPE "\", style=\"" KCV_NODE_STYLE "\", fillcolor=\"" KCV_NODE_FILL "\", color=\"" KCV_NODE_BORDER "\", fontname=\"" KCV_FONT "\", fontcolor=\"" KCV_NODE_TEXT "\", fontsize=" KCV_NODE_FONTSIZE ", margin=\"" KCV_NODE_MARGIN "\"];\n");
+    fprintf(out, "  edge [arrowsize=" KCV_EDGE_ARROWSIZE ", penwidth=" KCV_EDGE_PENWIDTH "];\n");
+    kc_dot_quote(out, "flow:entry"); fputs(" [label=\"flow.link\\nentry\", shape=\"" KCV_ENTRY_SHAPE "\", fillcolor=\"" KCV_ENTRY_FILL "\", color=\"" KCV_ENTRY_BORDER "\", penwidth=" KCV_ENTRY_PENWIDTH "];\n", out);
 
     for (size_t i = 0; i < nodes.count; i++) {
         char b[1024]; snprintf(b, sizeof(b), "node:%s", nodes.items[i]);
@@ -313,12 +313,12 @@ static int kc_fldot_generate_dot(const kc_flow_records *r, FILE *out) {
     for (size_t i = 0; i < funcs.count; i++) {
         char b[1024]; snprintf(b, sizeof(b), "func:%s", funcs.items[i]);
         char l[1024]; snprintf(l, sizeof(l), "func.%s", funcs.items[i]);
-        kc_dot_quote(out, b); fprintf(out, " [label="); kc_dot_quote(out, l); fputs(", shape=component, fillcolor=\"" KCV_FUNC_FILL "\", color=\"" KCV_FUNC_BORDER "\", penwidth=1.8];\n", out);
+        kc_dot_quote(out, b); fprintf(out, " [label="); kc_dot_quote(out, l); fputs(", shape=\"" KCV_FUNC_SHAPE "\", fillcolor=\"" KCV_FUNC_FILL "\", color=\"" KCV_FUNC_BORDER "\", penwidth=" KCV_FUNC_PENWIDTH "];\n", out);
     }
     for (size_t i = 0; i < files.count; i++) {
         char b[1024]; snprintf(b, sizeof(b), "file:%s", files.items[i]);
         char l[2048]; snprintf(l, sizeof(l), "child flow\\n%s", files.items[i]);
-        kc_dot_quote(out, b); fprintf(out, " [label="); kc_dot_quote(out, l); fputs(", shape=folder, fillcolor=\"" KCV_FILE_FILL "\", color=\"" KCV_FILE_BORDER "\", penwidth=1.8];\n", out);
+        kc_dot_quote(out, b); fprintf(out, " [label="); kc_dot_quote(out, l); fputs(", shape=\"" KCV_FILE_SHAPE "\", fillcolor=\"" KCV_FILE_FILL "\", color=\"" KCV_FILE_BORDER "\", penwidth=" KCV_FILE_PENWIDTH "];\n", out);
     }
 
     for (size_t i = 0; i < r->count; i++) {
@@ -329,12 +329,12 @@ static int kc_fldot_generate_dot(const kc_flow_records *r, FILE *out) {
                 for (size_t j = 0; j < t.count; j++) {
                     char to[1024]; snprintf(to, sizeof(to), "node:%s", t.items[j]);
                     kc_dot_quote(out, "flow:entry"); fputs(" -> ", out); kc_dot_quote(out, to);
-                    fputs(" [style=dashed, color=\"" KCV_COMPUTED_EDGE "\", penwidth=1.35];\n", out);
+                    fputs(" [style=\"" KCV_COMPUTED_EDGE_STYLE "\", color=\"" KCV_COMPUTED_EDGE "\", penwidth=" KCV_COMPUTED_EDGE_PENWIDTH "];\n", out);
                 }
             } else {
                 char to[1024]; snprintf(to, sizeof(to), "node:%s", rec.value);
                 kc_dot_quote(out, "flow:entry"); fputs(" -> ", out); kc_dot_quote(out, to);
-                fputs(" [color=\"" KCV_ENTRY_EDGE "\", penwidth=1.8];\n", out);
+                fputs(" [style=\"" KCV_ENTRY_EDGE_STYLE "\", color=\"" KCV_ENTRY_EDGE "\", penwidth=" KCV_ENTRY_EDGE_PENWIDTH "];\n", out);
             }
         } else {
             char *ref = NULL, *field = kc_field_after(rec.key, "node.", &ref);
@@ -346,24 +346,24 @@ static int kc_fldot_generate_dot(const kc_flow_records *r, FILE *out) {
                     if (t.count == 0) {
                         char to[1024]; snprintf(to, sizeof(to), "computed:%s", ref);
                         char l[1024]; snprintf(l, sizeof(l), "computed link\\n%s", ref);
-                        kc_dot_quote(out, to); fprintf(out, " [label="); kc_dot_quote(out, l); fputs(", shape=diamond, fillcolor=\"" KCV_COMPUTED_FILL "\", color=\"" KCV_COMPUTED_BORDER "\", penwidth=1.8];\n", out);
-                        kc_dot_quote(out, from); fputs(" -> ", out); kc_dot_quote(out, to); fputs(" [style=dashed, color=\"" KCV_COMPUTED_EDGE "\", penwidth=1.35];\n", out);
+                        kc_dot_quote(out, to); fprintf(out, " [label="); kc_dot_quote(out, l); fputs(", shape=\"" KCV_COMPUTED_SHAPE "\", fillcolor=\"" KCV_COMPUTED_FILL "\", color=\"" KCV_COMPUTED_BORDER "\", penwidth=" KCV_COMPUTED_PENWIDTH "];\n", out);
+                        kc_dot_quote(out, from); fputs(" -> ", out); kc_dot_quote(out, to); fputs(" [style=\"" KCV_COMPUTED_EDGE_STYLE "\", color=\"" KCV_COMPUTED_EDGE "\", penwidth=" KCV_COMPUTED_EDGE_PENWIDTH "];\n", out);
                     } else {
                         for (size_t j = 0; j < t.count; j++) {
                             char to[1024]; snprintf(to, sizeof(to), "node:%s", t.items[j]);
-                            kc_dot_quote(out, from); fputs(" -> ", out); kc_dot_quote(out, to); fputs(" [style=dashed, color=\"" KCV_COMPUTED_EDGE "\", penwidth=1.35];\n", out);
+                            kc_dot_quote(out, from); fputs(" -> ", out); kc_dot_quote(out, to); fputs(" [style=\"" KCV_COMPUTED_EDGE_STYLE "\", color=\"" KCV_COMPUTED_EDGE "\", penwidth=" KCV_COMPUTED_EDGE_PENWIDTH "];\n", out);
                         }
                     }
                 } else {
                     char to[1024]; snprintf(to, sizeof(to), "node:%s", rec.value);
-                    kc_dot_quote(out, from); fputs(" -> ", out); kc_dot_quote(out, to); fputs(" [color=\"" KCV_RUNTIME_EDGE "\", penwidth=1.8];\n", out);
+                    kc_dot_quote(out, from); fputs(" -> ", out); kc_dot_quote(out, to); fputs(" [style=\"" KCV_RUNTIME_EDGE_STYLE "\", color=\"" KCV_RUNTIME_EDGE "\", penwidth=" KCV_RUNTIME_EDGE_PENWIDTH "];\n", out);
                 }
             } else if (strcmp(field, "use") == 0) {
                 char to[1024]; snprintf(to, sizeof(to), "node:%s", rec.value);
-                kc_dot_quote(out, from); fputs(" -> ", out); kc_dot_quote(out, to); fputs(" [style=dashed, color=\"" KCV_USE_EDGE "\", penwidth=1.35];\n", out);
+                kc_dot_quote(out, from); fputs(" -> ", out); kc_dot_quote(out, to); fputs(" [style=\"" KCV_USE_EDGE_STYLE "\", color=\"" KCV_USE_EDGE "\", penwidth=" KCV_USE_EDGE_PENWIDTH "];\n", out);
             } else if (strcmp(field, "file") == 0) {
                 char to[1024]; snprintf(to, sizeof(to), "file:%s", rec.value);
-                kc_dot_quote(out, from); fputs(" -> ", out); kc_dot_quote(out, to); fputs(" [style=dotted, color=\"" KCV_FILE_EDGE "\", penwidth=1.8];\n", out);
+                kc_dot_quote(out, from); fputs(" -> ", out); kc_dot_quote(out, to); fputs(" [style=\"" KCV_FILE_EDGE_STYLE "\", color=\"" KCV_FILE_EDGE "\", penwidth=" KCV_FILE_EDGE_PENWIDTH "];\n", out);
             }
             free(field); free(ref);
         }
