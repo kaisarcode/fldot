@@ -1,0 +1,23 @@
+flow.id=fldot
+
+flow.link=<<EOF
+if [ "$MODE" = "api" ]; then
+    printf "handle_api"
+else
+    printf "handle_web"
+fi
+EOF
+
+node.handle_api.func=parse_json
+node.handle_api.use=auth_guard
+node.handle_api.link=run_query
+
+node.handle_web.func=parse_form
+node.handle_web.use=session_mgr
+node.handle_web.link=render_page
+
+node.run_query.func=fetch_db
+node.run_query.use=db_pool
+
+node.render_page.file=views/home.flow
+node.render_page.use=template_engine
