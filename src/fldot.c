@@ -122,6 +122,19 @@ static void kc_records_add(kc_flow_records *r, const char *key, const char *valu
 }
 
 /**
+ * @brief Find one record value by exact key.
+ * @param r Records array.
+ * @param key Key to search.
+ * @return Matching value, or NULL when missing.
+ */
+static const char *kc_records_get(const kc_flow_records *r, const char *key) {
+    for (size_t i = 0; i < r->count; i++) {
+        if (strcmp(r->items[i].key, key) == 0) return r->items[i].value;
+    }
+    return NULL;
+}
+
+/**
  * @brief Add a unique string to the dynamic array.
  * @param s Strings array.
  * @param v Value to add.
@@ -160,6 +173,40 @@ static void kc_dot_quote(FILE *out, const char *s) {
         }
     }
     fputc('"', out);
+}
+
+/**
+ * @brief Build one metadata key for a referenced flow element.
+ * @param prefix Element prefix.
+ * @param ref Element reference.
+ * @param field Metadata field name.
+ * @return Allocated metadata key.
+ */
+static char *kc_meta_key(const char *prefix, const char *ref, const char *field) {
+    size_t n = strlen(prefix) + strlen(ref) + strlen(".meta.") + strlen(field);
+    char *key = (char *)kc_xmalloc(n + 1);
+    sprintf(key, "%s%s.meta.%s", prefix, ref, field);
+    return key;
+}
+
+/**
+ * @brief Find metadata for a referenced flow element.
+ * @param r Records array.
+ * @param prefix Element prefix.
+ * @param ref Element reference.
+ * @param field Metadata field name.
+ * @return Metadata value, or NULL when missing.
+ */
+static const char *kc_meta_value(
+const kc_flow_records *r,
+const char *prefix,
+const char *ref,
+const char *field
+) {
+    char *key = kc_meta_key(prefix, ref, field);
+    const char *value = kc_records_get(r, key);
+    free(key);
+    return value;
 }
 
 /**
@@ -282,6 +329,7 @@ static int kc_fldot_read_records(FILE *fp, kc_flow_records *r) {
 static int kc_fldot_generate_dot(const kc_flow_records *r, FILE *out) {
     kc_flow_strings nodes = {0}, funcs = {0}, files = {0};
     const char *flow_id = "flow";
+    const char *flow_title = NULL;
     for (size_t i = 0; i < r->count; i++) {
         char *ref = NULL, *field;
         if ((field = kc_field_after(r->items[i].key, "node.", &ref))) {
@@ -300,20 +348,29 @@ static int kc_fldot_generate_dot(const kc_flow_records *r, FILE *out) {
         }
     }
 
+    flow_title = kc_records_get(r, "flow.meta.title");
+    if (!flow_title) flow_title = flow_id;
+
     fprintf(out, "digraph "); kc_dot_quote(out, flow_id); fputs(" {\n", out);
-    fprintf(out, "  graph [rankdir=\"" KCV_GRAPH_RANKDIR "\", bgcolor=\"" KCV_BG "\", fontname=\"" KCV_FONT "\", fontcolor=\"" KCV_GRAPH_TEXT "\", label=\"%s\", labelloc=t, fontsize=" KCV_GRAPH_FONTSIZE ", pad=" KCV_GRAPH_PAD ", nodesep=" KCV_GRAPH_NODESEP ", ranksep=" KCV_GRAPH_RANKSEP ", splines=\"" KCV_GRAPH_SPLINES "\"];\n", flow_id);
+    fprintf(out, "  graph [rankdir=\"" KCV_GRAPH_RANKDIR "\", bgcolor=\"" KCV_BG "\", fontname=\"" KCV_FONT "\", fontcolor=\"" KCV_GRAPH_TEXT "\", label=");
+    kc_dot_quote(out, flow_title);
+    fputs(", labelloc=t, fontsize=" KCV_GRAPH_FONTSIZE ", pad=" KCV_GRAPH_PAD ", nodesep=" KCV_GRAPH_NODESEP ", ranksep=" KCV_GRAPH_RANKSEP ", splines=\"" KCV_GRAPH_SPLINES "\"];\n", out);
     fprintf(out, "  node [shape=\"" KCV_NODE_SHAPE "\", style=\"" KCV_NODE_STYLE "\", fillcolor=\"" KCV_NODE_FILL "\", color=\"" KCV_NODE_BORDER "\", fontname=\"" KCV_FONT "\", fontcolor=\"" KCV_NODE_TEXT "\", fontsize=" KCV_NODE_FONTSIZE ", margin=\"" KCV_NODE_MARGIN "\"];\n");
     fprintf(out, "  edge [arrowsize=" KCV_EDGE_ARROWSIZE ", penwidth=" KCV_EDGE_PENWIDTH "];\n");
     kc_dot_quote(out, "flow:entry"); fputs(" [label=\"flow.link\\nentry\", shape=\"" KCV_ENTRY_SHAPE "\", fillcolor=\"" KCV_ENTRY_FILL "\", color=\"" KCV_ENTRY_BORDER "\", penwidth=" KCV_ENTRY_PENWIDTH "];\n", out);
 
     for (size_t i = 0; i < nodes.count; i++) {
+        const char *label = kc_meta_value(r, "node.", nodes.items[i], "title");
+        if (!label) label = nodes.items[i];
         char b[1024]; snprintf(b, sizeof(b), "node:%s", nodes.items[i]);
-        kc_dot_quote(out, b); fprintf(out, " [label="); kc_dot_quote(out, nodes.items[i]); fputs("];\n", out);
+        kc_dot_quote(out, b); fprintf(out, " [label="); kc_dot_quote(out, label); fputs("];\n", out);
     }
     for (size_t i = 0; i < funcs.count; i++) {
         char b[1024]; snprintf(b, sizeof(b), "func:%s", funcs.items[i]);
         char l[1024]; snprintf(l, sizeof(l), "func.%s", funcs.items[i]);
-        kc_dot_quote(out, b); fprintf(out, " [label="); kc_dot_quote(out, l); fputs(", shape=\"" KCV_FUNC_SHAPE "\", fillcolor=\"" KCV_FUNC_FILL "\", color=\"" KCV_FUNC_BORDER "\", penwidth=" KCV_FUNC_PENWIDTH "];\n", out);
+        const char *label = kc_meta_value(r, "func.", funcs.items[i], "title");
+        if (!label) label = l;
+        kc_dot_quote(out, b); fprintf(out, " [label="); kc_dot_quote(out, label); fputs(", shape=\"" KCV_FUNC_SHAPE "\", fillcolor=\"" KCV_FUNC_FILL "\", color=\"" KCV_FUNC_BORDER "\", penwidth=" KCV_FUNC_PENWIDTH "];\n", out);
     }
     for (size_t i = 0; i < files.count; i++) {
         char b[1024]; snprintf(b, sizeof(b), "file:%s", files.items[i]);

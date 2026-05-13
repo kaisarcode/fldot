@@ -1,4 +1,5 @@
 flow.id=fldot
+flow.meta.title=Flow To DOT Example
 
 flow.link=<<EOF
 if [ "$MODE" = "api" ]; then
@@ -8,16 +9,28 @@ else
 fi
 EOF
 
+node.handle_api.meta.title=Handle API Request
 node.handle_api.func=parse_json
 node.handle_api.use=auth_guard
 node.handle_api.link=run_query
 
+node.handle_web.meta.title=Handle Web Request
 node.handle_web.func=parse_form
 node.handle_web.use=session_mgr
 node.handle_web.link=render_page
 
+node.auth_guard.meta.title=Auth Guard
+
+node.session_mgr.meta.title=Session Manager
+
+node.run_query.meta.title=Run Database Query
 node.run_query.func=fetch_db
 node.run_query.use=db_pool
 
+node.db_pool.meta.title=Database Pool
+
+node.render_page.meta.title=Render Page
 node.render_page.file=views/home.flow
 node.render_page.use=template_engine
+
+node.template_engine.meta.title=Template Engine

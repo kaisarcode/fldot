@@ -129,6 +129,50 @@ kc_test_explicit_output() {
     return 0
 }
 
+# Tests metadata titles in generated DOT labels.
+# @return 0 on success, 1 on failure.
+kc_test_meta_titles() {
+    tmp_dir=$(mktemp -d)
+    tmp_flow="$tmp_dir/test.flow"
+    tmp_out="$tmp_dir/meta.dot"
+    printf '%s\n' \
+        'flow.id=test' \
+        'flow.meta.title=Visible Graph' \
+        'node.router.meta.title=Request Router' \
+        'node.router.link=done' \
+        'node.done.exec=cat' \
+        'func.wrap.meta.title=Response Wrapper' \
+        'func.wrap.exec=cat' > "$tmp_flow"
+
+    if ! "$BIN" -i "$tmp_flow" -o "$tmp_out" > /dev/null 2>&1; then
+        kc_test_fail "metadata title execution"
+        rm -rf "$tmp_dir"
+        return 1
+    fi
+
+    if ! grep -q 'label="Visible Graph"' "$tmp_out"; then
+        kc_test_fail "flow metadata title label"
+        rm -rf "$tmp_dir"
+        return 1
+    fi
+
+    if ! grep -q '"node:router" \[label="Request Router"\]' "$tmp_out"; then
+        kc_test_fail "node metadata title label"
+        rm -rf "$tmp_dir"
+        return 1
+    fi
+
+    if ! grep -q '"func:wrap" \[label="Response Wrapper"' "$tmp_out"; then
+        kc_test_fail "function metadata title label"
+        rm -rf "$tmp_dir"
+        return 1
+    fi
+
+    kc_test_pass "metadata title labels"
+    rm -rf "$tmp_dir"
+    return 0
+}
+
 # Runs the full validation suite.
 # @return 0 on success, 1 on failure.
 kc_test_main() {
@@ -137,6 +181,7 @@ kc_test_main() {
     kc_test_check_binary || exit 1
     kc_test_basic_exec      || failed=$((failed + 1))
     kc_test_explicit_output || failed=$((failed + 1))
+    kc_test_meta_titles     || failed=$((failed + 1))
     return $failed
 }
 

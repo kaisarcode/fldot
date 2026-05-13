@@ -43,6 +43,27 @@ dot -Tpng example.dot -o example.png
 
 ---
 
+## Flow Metadata
+
+Flow documents may attach display metadata under the `meta` namespace:
+
+```flow
+flow.meta.title=Website Runtime
+flow.meta.summary=Registers the listener and dispatches parsed requests.
+
+node.router.meta.title=Request Router
+node.router.meta.summary=Extracts request.path from parsed HTTP fields.
+```
+
+`fldot` builds graph structure from execution fields such as `flow.link`,
+`node.*.link`, `node.*.use`, and `node.*.file`. It uses `flow.meta.title` as
+the visible graph label, and `node.*.meta.title` or `func.*.meta.title` as
+visible element labels when present. Other metadata fields remain valid Flow
+data and are safe to keep in input documents; `*.meta.summary` can later map to
+DOT tooltip or graph-comment attributes.
+
+---
+
 ## Theming
 
 The visual appearance of the generated DOT graphs is fully customizable through the `src/theme.h` C header file. `fldot` is built with a sleek, dark KaisarCode product theme by default. 
