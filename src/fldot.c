@@ -1,6 +1,6 @@
 /**
- * fldot.c - flow visualization CLI
- * Summary: Command line interface for converting flow documents to SVG.
+ * fldot.c - Flow to DOT Converter
+ * Summary: Command line interface for converting flow documents to DOT graph syntax.
  *
  * Author:  KaisarCode
  * Website: https://kaisarcode.com
