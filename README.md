@@ -47,7 +47,7 @@ dot -Tpng example.dot -o example.png
 
 The visual appearance of the generated DOT graphs is fully customizable through the `src/theme.h` C header file. `fldot` is built with a sleek, dark KaisarCode product theme by default. 
 
-To change background colors, fonts, node shapes, or edge styles, simply modify the macro definitions in `src/theme.h` and rebuild the project:
+To change background colors, border colors, or typography, simply modify the macro definitions in `src/theme.h` and rebuild the project:
 
 ```c
 #define KCV_FONT              "Arial"
