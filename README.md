@@ -1,6 +1,6 @@
 # fldot - Flow to DOT Converter
 
-`fldot` is a command-line tool that converts `.flow` documents into DOT graph syntax. It parses node definitions, inheritance, and link structures to generate a visual representation of the execution flow that can be piped into Graphviz or other DOT-compatible renderers.
+`fldot` is a command-line tool that converts `.flow` documents into DOT graph syntax. It parses node definitions, inheritance, and link structures to generate a visual representation of the execution flow that can be rendered using Graphviz or other DOT-compatible tools.
 
 ![Example Flow](etc/example.png)
 
