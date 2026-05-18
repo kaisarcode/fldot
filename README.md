@@ -66,7 +66,7 @@ DOT tooltip or graph-comment attributes.
 
 ## Theming
 
-The visual appearance of the generated DOT graphs is fully customizable through the `src/theme.h` C header file. `fldot` is built with a sleek, dark KaisarCode product theme by default. 
+The visual appearance of the generated DOT graphs is fully customizable through the `src/theme.h` C header file. `fldot` is built with a sleek, dark KaisarCode product theme by default.
 
 To change background colors, border colors, typography, node shapes, or edge styles, simply modify the macro definitions in `src/theme.h` and rebuild the project:
 
@@ -114,12 +114,8 @@ make loongarch64/linux
 
 ---
 
-**Author:** KaisarCode
+## License
 
-**Email:** <kaisar@kaisarcode.com>
+[![GPLv3](https://www.gnu.org/graphics/gplv3-127x51.png)](https://www.gnu.org/licenses/gpl-3.0.html)
 
-**Website:** [https://kaisarcode.com](https://kaisarcode.com)
-
-**License:** [GNU GPL v3.0](https://www.gnu.org/licenses/gpl-3.0.html)
-
-© 2026 KaisarCode
+This project is distributed under the **GNU General Public License version 3 (GPLv3)**.

@@ -14,7 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "theme.h"
-#define KC_FLDOT_VERSION "0.1.0"
+#define KC_FLDOT_VERSION "1.0.0"
 
 /**
  * @struct kc_flow_record
