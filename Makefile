@@ -9,9 +9,62 @@ ANDROID_HOME  ?= $(HOME)/.local/share/android-sdk
 NDK_VERSION   ?= 27.2.12479018
 NDK_DIR       := $(ANDROID_HOME)/ndk/$(NDK_VERSION)
 NDK_TOOLCHAIN := $(NDK_DIR)/build/cmake/android.toolchain.cmake
+XDG_DATA_HOME ?= $(HOME)/.local/share
+OSXCROSS_ROOT ?= $(XDG_DATA_HOME)/osxcross/target
+MACOSX_DEPLOYMENT_TARGET ?= 11.0
+IOS_DEPLOYMENT_TARGET ?= 13.0
+IPHONEOS_SDK ?= $(shell ls -d "$(OSXCROSS_ROOT)"/SDK/iPhoneOS*.sdk 2>/dev/null | sort -V | tail -n 1)
+IPHONESIMULATOR_SDK ?= $(shell ls -d "$(OSXCROSS_ROOT)"/SDK/iPhoneSimulator*.sdk 2>/dev/null | sort -V | tail -n 1)
+OSXCROSS_X86_64_CC := $(OSXCROSS_ROOT)/bin/o64-clang
+OSXCROSS_AARCH64_CC := $(OSXCROSS_ROOT)/bin/oa64-clang
+OSXCROSS_IOS_AARCH64_CC := $(OSXCROSS_ROOT)/bin/ios64-clang
+OSXCROSS_IOSSIM_AARCH64_CC := $(OSXCROSS_ROOT)/bin/iossim64-clang
+OSXCROSS_IOSSIM_X86_64_CC := $(OSXCROSS_ROOT)/bin/iossimx64-clang
+WINE ?= wine
+WINE_X86_64_CC ?= x86_64-w64-mingw32-gcc
 
 BUILD_DIR := .build
 BIN_DIR   := bin
+BUILD_VERSION ?= $(shell date +%s)
+
+define cmake_build
+	@prelog=$$(mktemp); \
+	if ! $(3) cmake --build $(1) -- -n > "$$prelog" 2>&1; then \
+		cat "$$prelog"; \
+		rm -f "$$prelog"; \
+		exit 1; \
+	fi; \
+	if grep -q "ninja: no work to do." "$$prelog"; then \
+		rm -f "$$prelog"; \
+		out=$$(mktemp); \
+		$(3) cmake --build $(1) 2>"$$out"; \
+		r=$$?; \
+		if [ -s "$$out" ]; then grep -v 'skipping incompatible' < "$$out"; fi; \
+		rm -f "$$out"; \
+		exit $$r; \
+	fi; \
+	rm -f "$$prelog"; \
+	out=$$(mktemp); \
+	$(3) cmake --build $(1) 2>"$$out"; \
+	r=$$?; \
+	if [ -s "$$out" ]; then grep -v 'skipping incompatible' < "$$out"; fi; \
+	rm -f "$$out"; \
+	if [ $$r -ne 0 ]; then \
+		exit 1; \
+	fi; \
+	if [ -n "$(2)" ]; then \
+		ver=$$(date +%s); \
+		$(2); \
+		log=$$(mktemp); \
+		if ! $(3) cmake --build $(1) > "$$log" 2>&1; then \
+			cat "$$log"; \
+			rm -f "$$log"; \
+			exit 1; \
+		fi; \
+		rm -f "$$log"; \
+	fi; \
+	:
+endef
 
 HOST_ARCH       := $(shell uname -m)
 HOST_SYSTEM     := $(shell uname -s)
@@ -51,13 +104,19 @@ NATIVE_PLATFORM := windows
 endif
 
 NATIVE_TARGET := $(NATIVE_ARCH)/$(NATIVE_PLATFORM)
+NATIVE_EXE_EXT :=
+
+ifeq ($(NATIVE_PLATFORM),windows)
+NATIVE_EXE_EXT := .exe
+endif
 
 .DEFAULT_GOAL := native
 
-.PHONY: native all test clean \
-	x86_64/linux x86_64/windows \
+.PHONY: native all test wine clean \
+	x86_64/linux x86_64/windows x86_64/macos \
+	x86_64/iossim \
 	i686/linux i686/windows \
-	aarch64/linux aarch64/android \
+	aarch64/linux aarch64/android aarch64/macos aarch64/ios aarch64/iossim \
 	armv7/linux armv7/android \
 	armv7hf/linux \
 	riscv64/linux \
@@ -71,12 +130,13 @@ native:
 		echo "Unsupported native target $(HOST_ARCH)/$(HOST_SYSTEM)" >&2; \
 		exit 1; \
 	fi
-	@$(MAKE) $(NATIVE_TARGET)
+	@$(MAKE) BUILD_VERSION=$(BUILD_VERSION) $(NATIVE_TARGET)
 
 all: \
-	x86_64/linux x86_64/windows \
+	x86_64/linux x86_64/windows x86_64/macos \
+	x86_64/iossim \
 	i686/linux i686/windows \
-	aarch64/linux aarch64/android \
+	aarch64/linux aarch64/android aarch64/macos aarch64/ios aarch64/iossim \
 	armv7/linux armv7/android \
 	armv7hf/linux \
 	riscv64/linux \
@@ -89,13 +149,16 @@ all: \
 
 define linux_target
 	@mkdir -p $(BIN_DIR)/$(1)/linux
-	@cmake -S . -B $(BUILD_DIR)/$(subst /,-,$(1))-linux \
-		-DCMAKE_BUILD_TYPE=Release \
-		-DCMAKE_SYSTEM_NAME=Linux \
-		-DCMAKE_C_COMPILER=$(2) \
-		-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=$(CURDIR)/$(BUILD_DIR)/$(subst /,-,$(1))-linux/out \
-		-G Ninja -Wno-dev > /dev/null
-	@cmake --build $(BUILD_DIR)/$(subst /,-,$(1))-linux
+	@if [ ! -f $(BUILD_DIR)/$(subst /,-,$(1))-linux/CMakeCache.txt ]; then \
+		cmake -S . -B $(BUILD_DIR)/$(subst /,-,$(1))-linux \
+			-DCMAKE_BUILD_TYPE=Release \
+			-DCMAKE_SYSTEM_NAME=Linux \
+			-DFLDOT_BUILD_VERSION=$(BUILD_VERSION) \
+			-DCMAKE_C_COMPILER=$(2) \
+			-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=$(CURDIR)/$(BUILD_DIR)/$(subst /,-,$(1))-linux/out \
+			-G Ninja -Wno-dev > /dev/null; \
+	fi
+	$(call cmake_build,$(BUILD_DIR)/$(subst /,-,$(1))-linux,cmake -S . -B $(BUILD_DIR)/$(subst /,-,$(1))-linux -DCMAKE_BUILD_TYPE=Release -DCMAKE_SYSTEM_NAME=Linux -DFLDOT_BUILD_VERSION=$$ver -DCMAKE_C_COMPILER=$(2) -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=$(CURDIR)/$(BUILD_DIR)/$(subst /,-,$(1))-linux/out -G Ninja -Wno-dev > /dev/null)
 	@cp $(BUILD_DIR)/$(subst /,-,$(1))-linux/out/fldot $(BIN_DIR)/$(1)/linux/fldot
 	@echo "OK $(1)/linux"
 endef
@@ -140,13 +203,16 @@ loongarch64/linux:
 
 define windows_target
 	@mkdir -p $(BIN_DIR)/$(1)/windows
-	@cmake -S . -B $(BUILD_DIR)/$(1)-windows \
-		-DCMAKE_BUILD_TYPE=Release \
-		-DCMAKE_SYSTEM_NAME=Windows \
-		-DCMAKE_C_COMPILER=$(2) \
-		-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=$(CURDIR)/$(BUILD_DIR)/$(1)-windows/out \
-		-G Ninja -Wno-dev > /dev/null
-	@cmake --build $(BUILD_DIR)/$(1)-windows
+	@if [ ! -f $(BUILD_DIR)/$(1)-windows/CMakeCache.txt ]; then \
+		cmake -S . -B $(BUILD_DIR)/$(1)-windows \
+			-DCMAKE_BUILD_TYPE=Release \
+			-DCMAKE_SYSTEM_NAME=Windows \
+			-DFLDOT_BUILD_VERSION=$(BUILD_VERSION) \
+			-DCMAKE_C_COMPILER=$(2) \
+			-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=$(CURDIR)/$(BUILD_DIR)/$(1)-windows/out \
+			-G Ninja -Wno-dev > /dev/null; \
+	fi
+	$(call cmake_build,$(BUILD_DIR)/$(1)-windows,cmake -S . -B $(BUILD_DIR)/$(1)-windows -DCMAKE_BUILD_TYPE=Release -DCMAKE_SYSTEM_NAME=Windows -DFLDOT_BUILD_VERSION=$$ver -DCMAKE_C_COMPILER=$(2) -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=$(CURDIR)/$(BUILD_DIR)/$(1)-windows/out -G Ninja -Wno-dev > /dev/null)
 	@cp $(BUILD_DIR)/$(1)-windows/out/fldot.exe $(BIN_DIR)/$(1)/windows/fldot.exe
 	@echo "OK $(1)/windows"
 endef
@@ -157,18 +223,99 @@ x86_64/windows:
 i686/windows:
 	$(call windows_target,i686,i686-w64-mingw32-gcc)
 
+## macOS
+
+define macos_target
+	@mkdir -p $(BIN_DIR)/$(1)/macos
+	@if [ ! -x $(2) ]; then \
+		echo "Missing macOS cross-compiler wrapper: $(2)" >&2; \
+		echo "Set OSXCROSS_ROOT to your osxcross target dir and ensure the wrappers are built." >&2; \
+		exit 1; \
+	fi
+	@if [ ! -f $(BUILD_DIR)/$(1)-macos/build.ninja ]; then \
+		PATH="$(OSXCROSS_ROOT)/bin:$$PATH" cmake -S . -B $(BUILD_DIR)/$(1)-macos \
+			-DCMAKE_BUILD_TYPE=Release \
+			-DCMAKE_SYSTEM_NAME=Darwin \
+			-DCMAKE_OSX_DEPLOYMENT_TARGET=$(MACOSX_DEPLOYMENT_TARGET) \
+			-DFLDOT_BUILD_VERSION=$(BUILD_VERSION) \
+			-DCMAKE_C_COMPILER=$(2) \
+			-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=$(CURDIR)/$(BUILD_DIR)/$(1)-macos/out \
+			-G Ninja -Wno-dev > /dev/null; \
+	fi
+	$(call cmake_build,$(BUILD_DIR)/$(1)-macos,PATH="$(OSXCROSS_ROOT)/bin:$$PATH" cmake -S . -B $(BUILD_DIR)/$(1)-macos -DCMAKE_BUILD_TYPE=Release -DCMAKE_SYSTEM_NAME=Darwin -DCMAKE_OSX_DEPLOYMENT_TARGET=$(MACOSX_DEPLOYMENT_TARGET) -DFLDOT_BUILD_VERSION=$$ver -DCMAKE_C_COMPILER=$(2) -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=$(CURDIR)/$(BUILD_DIR)/$(1)-macos/out -G Ninja -Wno-dev > /dev/null,PATH="$(OSXCROSS_ROOT)/bin:$$PATH")
+	@cp $(BUILD_DIR)/$(1)-macos/out/fldot $(BIN_DIR)/$(1)/macos/fldot
+	@echo "OK $(1)/macos"
+endef
+
+x86_64/macos:
+	$(call macos_target,x86_64,$(OSXCROSS_X86_64_CC))
+
+aarch64/macos:
+	$(call macos_target,aarch64,$(OSXCROSS_AARCH64_CC))
+
+## iOS
+
+define ios_target
+	@mkdir -p $(BIN_DIR)/$(1)/$(2)
+	@if [ ! -x $(3) ]; then \
+		echo "Missing iOS cross-compiler wrapper: $(3)" >&2; \
+		echo "Set OSXCROSS_ROOT to your osxcross target dir and ensure the wrappers are built." >&2; \
+		exit 1; \
+	fi
+	@if [ -z "$(5)" ] || [ ! -d "$(5)" ]; then \
+		echo "Missing iOS SDK sysroot: $(5)" >&2; \
+		echo "Set $(4) to an installed Apple SDK directory." >&2; \
+		exit 1; \
+	fi
+	@if [ ! -f $(BUILD_DIR)/$(1)-$(2)/build.ninja ]; then \
+		PATH="$(OSXCROSS_ROOT)/bin:$$PATH" cmake -S . -B $(BUILD_DIR)/$(1)-$(2) \
+			-DCMAKE_BUILD_TYPE=Release \
+			-DCMAKE_SYSTEM_NAME=iOS \
+			-DCMAKE_SYSTEM_VERSION=$(IOS_DEPLOYMENT_TARGET) \
+			-DCMAKE_OSX_DEPLOYMENT_TARGET=$(IOS_DEPLOYMENT_TARGET) \
+			-DCMAKE_OSX_SYSROOT=$(5) \
+			-DCMAKE_OSX_ARCHITECTURES=$(6) \
+			-DFLDOT_BUILD_VERSION=$(BUILD_VERSION) \
+			-DCMAKE_C_COMPILER=$(3) \
+			-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=$(CURDIR)/$(BUILD_DIR)/$(1)-$(2)/out \
+			-G Ninja -Wno-dev > /dev/null; \
+	fi
+	$(call cmake_build,$(BUILD_DIR)/$(1)-$(2),PATH="$(OSXCROSS_ROOT)/bin:$$PATH" cmake -S . -B $(BUILD_DIR)/$(1)-$(2) -DCMAKE_BUILD_TYPE=Release -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_SYSTEM_VERSION=$(IOS_DEPLOYMENT_TARGET) -DCMAKE_OSX_DEPLOYMENT_TARGET=$(IOS_DEPLOYMENT_TARGET) -DCMAKE_OSX_SYSROOT=$(5) -DCMAKE_OSX_ARCHITECTURES=$(6) -DFLDOT_BUILD_VERSION=$$ver -DCMAKE_C_COMPILER=$(3) -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=$(CURDIR)/$(BUILD_DIR)/$(1)-$(2)/out -G Ninja -Wno-dev > /dev/null,PATH="$(OSXCROSS_ROOT)/bin:$$PATH")
+	@if [ -f $(BUILD_DIR)/$(1)-$(2)/out/fldot ]; then \
+		cp $(BUILD_DIR)/$(1)-$(2)/out/fldot $(BIN_DIR)/$(1)/$(2)/fldot; \
+	elif [ -f $(BUILD_DIR)/$(1)-$(2)/out/fldot.app/fldot ]; then \
+		cp $(BUILD_DIR)/$(1)-$(2)/out/fldot.app/fldot $(BIN_DIR)/$(1)/$(2)/fldot; \
+	else \
+		echo "Missing built iOS executable for $(1)/$(2)" >&2; \
+		exit 1; \
+	fi
+	@echo "OK $(1)/$(2)"
+endef
+
+aarch64/ios:
+	$(call ios_target,aarch64,ios,$(OSXCROSS_IOS_AARCH64_CC),IPHONEOS_SDK,$(IPHONEOS_SDK),arm64)
+
+aarch64/iossim:
+	$(call ios_target,aarch64,iossim,$(OSXCROSS_IOSSIM_AARCH64_CC),IPHONESIMULATOR_SDK,$(IPHONESIMULATOR_SDK),arm64)
+
+x86_64/iossim:
+	$(call ios_target,x86_64,iossim,$(OSXCROSS_IOSSIM_X86_64_CC),IPHONESIMULATOR_SDK,$(IPHONESIMULATOR_SDK),x86_64)
+
 ## Android
 
 define android_target
 	@mkdir -p $(BIN_DIR)/$(1)/android
-	@cmake -S . -B $(BUILD_DIR)/$(1)-android \
-		-DCMAKE_BUILD_TYPE=Release \
-		-DCMAKE_TOOLCHAIN_FILE=$(NDK_TOOLCHAIN) \
-		-DANDROID_ABI=$(2) \
-		-DANDROID_PLATFORM=android-21 \
-		-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=$(CURDIR)/$(BUILD_DIR)/$(1)-android/out \
-		-G Ninja -Wno-dev > /dev/null
-	@cmake --build $(BUILD_DIR)/$(1)-android
+	@if [ ! -f $(BUILD_DIR)/$(1)-android/CMakeCache.txt ]; then \
+		cmake -S . -B $(BUILD_DIR)/$(1)-android \
+			-DCMAKE_BUILD_TYPE=Release \
+			-DCMAKE_TOOLCHAIN_FILE=$(NDK_TOOLCHAIN) \
+			-DFLDOT_BUILD_VERSION=$(BUILD_VERSION) \
+			-DANDROID_ABI=$(2) \
+			-DANDROID_PLATFORM=android-21 \
+			-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=$(CURDIR)/$(BUILD_DIR)/$(1)-android/out \
+			-G Ninja -Wno-dev > /dev/null; \
+	fi
+	$(call cmake_build,$(BUILD_DIR)/$(1)-android,cmake -S . -B $(BUILD_DIR)/$(1)-android -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=$(NDK_TOOLCHAIN) -DFLDOT_BUILD_VERSION=$$ver -DANDROID_ABI=$(2) -DANDROID_PLATFORM=android-21 -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=$(CURDIR)/$(BUILD_DIR)/$(1)-android/out -G Ninja -Wno-dev > /dev/null)
 	@cp $(BUILD_DIR)/$(1)-android/out/fldot $(BIN_DIR)/$(1)/android/fldot
 	@echo "OK $(1)/android"
 endef
@@ -182,7 +329,59 @@ armv7/android:
 ## Utility
 
 test:
-	@sh test.sh
+	@if [ -n "$(filter wine,$(MAKECMDGOALS))" ]; then \
+		if ! command -v $(WINE) >/dev/null 2>&1; then \
+			echo "Missing Wine runtime: $(WINE)" >&2; \
+			exit 1; \
+		fi; \
+		if ! command -v $(WINE_X86_64_CC) >/dev/null 2>&1; then \
+			echo "Missing Windows cross-compiler: $(WINE_X86_64_CC)" >&2; \
+			exit 1; \
+		fi; \
+		if [ ! -f $(BIN_DIR)/x86_64/windows/fldot.exe ]; then \
+			echo "Missing Windows artifacts. Run 'make x86_64/windows' or 'make all' first." >&2; \
+			exit 1; \
+		fi; \
+		if [ ! -f $(BUILD_DIR)/test-wine/CMakeCache.txt ]; then \
+			cmake -S . -B $(BUILD_DIR)/test-wine \
+				-DCMAKE_BUILD_TYPE=Release \
+				-DCMAKE_SYSTEM_NAME=Windows \
+				-DCMAKE_C_COMPILER=$(WINE_X86_64_CC) \
+				-DFLDOT_BUILD_TESTS=ON \
+				-DFLDOT_BUILD_VERSION=$(BUILD_VERSION) \
+				-DFLDOT_TEST_CLI=$(CURDIR)/$(BIN_DIR)/x86_64/windows/fldot.exe \
+				-DCMAKE_CROSSCOMPILING_EMULATOR=$(WINE) \
+				-G Ninja -Wno-dev > /dev/null; \
+		fi; \
+		cmake --build $(BUILD_DIR)/test-wine --target fldot_contract_test; \
+		ctest --test-dir $(BUILD_DIR)/test-wine --output-on-failure; \
+	else \
+		if [ "$(NATIVE_ARCH)" = "unsupported" ] || [ "$(NATIVE_PLATFORM)" = "unsupported" ]; then \
+			echo "Unsupported native test target $(HOST_ARCH)/$(HOST_SYSTEM)" >&2; \
+			exit 1; \
+		fi; \
+		if [ ! -f $(BIN_DIR)/$(NATIVE_TARGET)/fldot$(NATIVE_EXE_EXT) ]; then \
+			echo "Missing native artifacts. Run 'make' first." >&2; \
+			exit 1; \
+		fi; \
+		if [ ! -f $(BUILD_DIR)/test/CMakeCache.txt ]; then \
+			cmake -S . -B $(BUILD_DIR)/test \
+				-DCMAKE_BUILD_TYPE=Release \
+				-DFLDOT_BUILD_TESTS=ON \
+				-DFLDOT_BUILD_VERSION=$(BUILD_VERSION) \
+				-DFLDOT_TEST_CLI=$(CURDIR)/$(BIN_DIR)/$(NATIVE_TARGET)/fldot$(NATIVE_EXE_EXT) \
+				-G Ninja -Wno-dev > /dev/null; \
+		fi; \
+		cmake --build $(BUILD_DIR)/test --target fldot_contract_test; \
+		ctest --test-dir $(BUILD_DIR)/test --output-on-failure; \
+	fi
+
+wine:
+	@if [ -z "$(filter test,$(MAKECMDGOALS))" ]; then \
+		echo "Use 'make test wine' to run tests through Wine." >&2; \
+		exit 1; \
+	fi
+	@:
 
 clean:
 	@rm -rf $(BUILD_DIR)

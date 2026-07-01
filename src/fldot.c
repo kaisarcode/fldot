@@ -14,11 +14,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include "theme.h"
-#define KC_FLDOT_VERSION "1.0.0"
+
+#ifndef KC_FLDOT_BUILD_VERSION
+#define KC_FLDOT_BUILD_VERSION 0
+#endif
 
 /**
  * @struct kc_flow_record
- * @brief Represents a single key-value pair from a flow file.
+ * Represents a single key-value pair from a flow file.
  */
 typedef struct {
     char *key;
@@ -28,7 +31,7 @@ typedef struct {
 
 /**
  * @struct kc_flow_records
- * @brief Dynamic array of flow records.
+ * Dynamic array of flow records.
  */
 typedef struct {
     kc_flow_record *items;
@@ -43,7 +46,7 @@ typedef struct {
 } kc_flow_strings;
 
 /**
- * @brief Allocate memory or exit on failure.
+ * Allocate memory or exit on failure.
  * @param size Size in bytes.
  * @return Pointer to allocated memory.
  */
@@ -54,7 +57,7 @@ static void *kc_xmalloc(size_t size) {
 }
 
 /**
- * @brief Duplicate a string or exit on failure.
+ * Duplicate a string or exit on failure.
  * @param s String to duplicate.
  * @return Duplicated string.
  */
@@ -65,7 +68,7 @@ static char *kc_xstrdup(const char *s) {
 }
 
 /**
- * @brief Duplicate a string with length or exit on failure.
+ * Duplicate a string with length or exit on failure.
  * @param s String to duplicate.
  * @param n Number of characters.
  * @return Duplicated string.
@@ -78,7 +81,7 @@ static char *kc_xstrndup(const char *s, size_t n) {
 }
 
 /**
- * @brief Trim whitespace from both ends of a string.
+ * Trim whitespace from both ends of a string.
  * @param s String to trim.
  * @return Pointer to the trimmed string within the original.
  */
@@ -92,7 +95,7 @@ static char *kc_trim(char *s) {
 }
 
 /**
- * @brief Check if a string starts with a prefix.
+ * Check if a string starts with a prefix.
  * @param s String to check.
  * @param prefix Prefix to look for.
  * @return 1 if it starts with prefix, 0 otherwise.
@@ -102,7 +105,7 @@ static int kc_starts_with(const char *s, const char *prefix) {
 }
 
 /**
- * @brief Add a record to the dynamic array.
+ * Add a record to the dynamic array.
  * @param r Records array.
  * @param key Key string.
  * @param value Value string.
@@ -122,7 +125,7 @@ static void kc_records_add(kc_flow_records *r, const char *key, const char *valu
 }
 
 /**
- * @brief Find one record value by exact key.
+ * Find one record value by exact key.
  * @param r Records array.
  * @param key Key to search.
  * @return Matching value, or NULL when missing.
@@ -135,7 +138,7 @@ static const char *kc_records_get(const kc_flow_records *r, const char *key) {
 }
 
 /**
- * @brief Add a unique string to the dynamic array.
+ * Add a unique string to the dynamic array.
  * @param s Strings array.
  * @param v Value to add.
  * @return None.
@@ -154,7 +157,7 @@ static void kc_strings_add_unique(kc_flow_strings *s, const char *v) {
 }
 
 /**
- * @brief Write a quoted string to a stream for DOT.
+ * Write a quoted string to a stream for DOT.
  * @param out Output stream.
  * @param s String to quote.
  * @return None.
@@ -176,7 +179,7 @@ static void kc_dot_quote(FILE *out, const char *s) {
 }
 
 /**
- * @brief Build one metadata key for a referenced flow element.
+ * Build one metadata key for a referenced flow element.
  * @param prefix Element prefix.
  * @param ref Element reference.
  * @param field Metadata field name.
@@ -190,7 +193,7 @@ static char *kc_meta_key(const char *prefix, const char *ref, const char *field)
 }
 
 /**
- * @brief Find metadata for a referenced flow element.
+ * Find metadata for a referenced flow element.
  * @param r Records array.
  * @param prefix Element prefix.
  * @param ref Element reference.
@@ -210,7 +213,7 @@ const char *field
 }
 
 /**
- * @brief Extract field after "node." or "func." prefix.
+ * Extract field after "node." or "func." prefix.
  * @param key Full key.
  * @param prefix Prefix ("node." or "func.").
  * @param ref_out Pointer to string to receive the reference name.
@@ -228,7 +231,7 @@ static char *kc_field_after(const char *key, const char *prefix, char **ref_out)
 }
 
 /**
- * @brief Scan a script for printf targets (heuristic).
+ * Scan a script for printf targets (heuristic).
  * @param script Shell script body.
  * @param targets Strings array to collect targets.
  * @return None.
@@ -265,7 +268,7 @@ static void kc_scan_printf_targets(const char *script, kc_flow_strings *targets)
 }
 
 /**
- * @brief Read a heredoc body from a file stream.
+ * Read a heredoc body from a file stream.
  * @param fp Input stream.
  * @param marker Heredoc terminator.
  * @return Heredoc body (caller must free).
@@ -470,7 +473,7 @@ static void kc_fldot_print_help(const char *name) {
  * @return None.
  */
 static void kc_fldot_print_version(void) {
-    printf("fldot %s\n", KC_FLDOT_VERSION);
+    printf("fldot build %lu\n", (unsigned long)KC_FLDOT_BUILD_VERSION);
 }
 
 /**

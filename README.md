@@ -8,8 +8,6 @@
 
 ## CLI
 
-Example CLI interface provided by the application.
-
 ### Examples
 
 Generate DOT in the same directory (creates `example.dot`):
@@ -88,18 +86,43 @@ Compiled artifacts are generated under `bin/{arch}/{platform}/` for the host arc
 make clean && make
 ```
 
-## Multiarch Builds
+### Tests
 
-The project is prepared to build artifacts for multiple architectures under `bin/{arch}/{platform}/`. A plain `make` builds only the current host architecture, while the targets below build the full matrix or a specific target.
+The portable test entry point is `make test`. Build project artifacts first, then run tests. Tests compile a test executable and run the built CLI through CTest.
+
+```bash
+make
+make test
+```
+
+To run the common `test` target in Windows-through-Wine mode:
+
+```bash
+make x86_64/windows
+make test wine
+```
+
+The portable C test source is `src/test.c`. Test binaries and runtime outputs are build artifacts and are not stored in the project tree.
+
+Build targets such as `make x86_64/windows` compile project artifacts. Tests are run only through `make test` or `make test wine`.
+
+### Multiarch Builds
+
+The project is prepared to build artifacts for multiple architectures under `bin/{arch}/{platform}/`. A plain `make` builds only the current host architecture.
 
 ```bash
 make all
 make x86_64/linux
 make x86_64/windows
+make x86_64/macos
+make x86_64/iossim
 make i686/linux
 make i686/windows
 make aarch64/linux
 make aarch64/android
+make aarch64/macos
+make aarch64/ios
+make aarch64/iossim
 make armv7/linux
 make armv7/android
 make armv7hf/linux
@@ -111,6 +134,42 @@ make mips64el/linux
 make s390x/linux
 make loongarch64/linux
 ```
+
+---
+
+## Development Requirements
+
+### Build Tools
+
+- `make` (GNU Make)
+- `cmake` >= 3.14
+- `ninja`
+- `gcc` or `clang` (C11 compatible)
+
+### System Libraries
+
+Linux:
+- `libpthread`
+- `libm`
+
+Windows (MSVC or MinGW):
+- No additional system libraries required.
+
+macOS / iOS:
+- No additional system libraries required.
+
+### Optional Cross-Compilation SDKs
+
+Required only for multiarch builds:
+
+- MinGW (`x86_64-w64-mingw32-gcc`) for Windows cross-compilation from Linux.
+- `wine` for running Windows tests on Linux.
+- `osxcross` with macOS and iOS SDKs for macOS and iOS targets.
+- Android NDK (version 27.2.12479018) for Android targets.
+
+### Test Dependencies
+
+- `ctest` (included with cmake)
 
 ---
 
